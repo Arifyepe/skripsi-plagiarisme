@@ -183,7 +183,13 @@ def hitung_stylometry(teks):
     return [lexical_diversity, avg_sentence_length, punct_ratio]
 
 def bersihkan_teks(teks):
-    return re.sub(r'[^a-zA-Z0-9\s]', ' ', teks).lower()
+    if not isinstance(teks, str):
+        return ""
+    teks = teks.lower()
+    import re
+    teks = re.sub(r'\d+', '', teks)
+    teks = re.sub(r'\s+', ' ', teks).strip()
+    return teks
 
 def extract_stylometric_features(text_series):
     """Mengekstrak fitur stylometri sesuai standar train_model.py dan naskah skripsi"""
@@ -207,41 +213,39 @@ def tebak_sumber_ai(teks_asli, lex_div, avg_len):
     score_gemini = 0
     score_claude = 0
     
-    # 1. Analisis Metrik Stilometri (Keragaman Kata)
-    if lex_div >= 0.60:
-        score_claude += 2
-    elif lex_div <= 0.45:
-        score_gpt += 2
-    else:
-        score_gemini += 1
-        
-    # 2. Analisis Panjang Kalimat
-    if avg_len >= 16:
-        score_gemini += 2
-    elif avg_len <= 12:
-        score_gpt += 1
-    else:
+    # 1. Analisis Metrik Stilometri (Hanya dipicu jika ekstrem)
+    if lex_div >= 0.85:
         score_claude += 1
+    elif lex_div <= 0.40:
+        score_gpt += 1
         
-    # 3. Analisis Pola Frasa (Watermark AI Generatif berbahasa Indonesia)
-    gpt_phrases = ["penting untuk", "kesimpulannya", "dapat disimpulkan", "di sisi lain", "secara umum", "perlu diingat", "pada akhirnya", "sebagai kesimpulan"]
-    gemini_phrases = ["secara komprehensif", "signifikan", "berikut adalah", "secara keseluruhan", "hal ini menunjukkan", "krusial", "mendalam", "berperan penting", "terutama"]
-    claude_phrases = ["kendati demikian", "meskipun begitu", "esensial", "nuansa", "pendekatan", "menariknya", "secara fundamental", "lebih lanjut"]
+    # 2. Analisis Panjang Kalimat (Hanya dipicu jika ekstrem)
+    if avg_len >= 22:
+        score_gemini += 1
+    elif avg_len <= 10:
+        score_gpt += 1
+        
+    # 3. Analisis Pola Frasa (Sangat kaku dan spesifik)
+    gpt_phrases = ["penting untuk dicatat", "perlu diingat bahwa", "sebagai model bahasa ai"]
+    gemini_phrases = ["secara komprehensif", "mari kita telusuri"]
+    claude_phrases = ["patut digarisbawahi", "secara fundamental"]
     
-    if any(phrase in teks for phrase in gpt_phrases):
-        score_gpt += 3
-    if any(phrase in teks for phrase in gemini_phrases):
-        score_gemini += 3
-    if any(phrase in teks for phrase in claude_phrases):
-        score_claude += 3
+    for phrase in gpt_phrases:
+        if phrase in teks: score_gpt += 2
+    for phrase in gemini_phrases:
+        if phrase in teks: score_gemini += 2
+    for phrase in claude_phrases:
+        if phrase in teks: score_claude += 2
         
-    # Penentuan Pemenang
-    if score_claude > score_gpt and score_claude >= score_gemini:
+    # Penentuan Pemenang secara adil tanpa bias >=
+    if score_claude > score_gpt and score_claude > score_gemini:
         return "Claude"
     elif score_gemini > score_gpt and score_gemini > score_claude:
         return "Gemini"
+    elif score_gpt > score_claude and score_gpt > score_gemini:
+        return "ChatGPT"
     else:
-        return "ChatGPT" # Fallback default
+        return "Campuran (Seri)" # Jika seri, dibagi rata 33%
 
 # =====================================================================
 # PENGECUALIAN (WHITELIST) DAFTAR STRUKTURAL SKRIPSI (DIROMBAK TOTAL & SUPER AGRESIF)
@@ -263,11 +267,12 @@ def is_halaman_struktural(teks):
     if any(frasa in t_lower for frasa in frasa_mutlak):
         return True
         
-    # 3. CEK KATA KUNCI COVER & LEMBAR PENGESAHAN (Kombinasi Form Isian)
+    # 3. CEK KATA KUNCI COVER & LEMBAR PENGESAHAN & FORM ISIAN (Kombinasi Form Isian)
     cover_keywords = [
         "nama", "npm", "nim", "jurusan", "program studi", "pembimbing", 
         "penguji", "tanggal sidang", "tanggal lulus", "ketua", "kasubag",
-        "fakultas", "universitas", "menyetujui", "tanda tangan", "nip", "nidn", "judul"
+        "fakultas", "universitas", "menyetujui", "tanda tangan", "nip", "nidn", "judul",
+        "mata pelajaran", "kelas", "absen", "hari", "tanggal", "latihan", "fase", "semester"
     ]
     # Jika dalam 1 paragraf pendek (<80 kata) memuat setidaknya 3 kata kunci dari form cover/pengesahan
     if len(t_lower.split()) < 80:
@@ -303,6 +308,41 @@ def is_halaman_struktural(teks):
     kode_keywords = ['if ', 'else:', 'for ', 'while ', 'def ', 'class ', 'import ', 'include ', 'void ', 'public ', 'echo ', 'return ', 'function ']
     simbol_koding = t_lower.count('{') + t_lower.count('}') + t_lower.count(';') + t_lower.count('()')
     if sum(1 for k in kode_keywords if k in t_lower) >= 2 or simbol_koding >= 3:
+        return True
+
+    # 7. DETEKSI HURUF KAPITAL SEMUA (JUDUL / NAMA KAMPUS / KOP SOAL)
+    # Jika teks pendek (< 40 kata) dan sebagian besar hurufnya kapital
+    words = teks.split()
+    if len(words) > 0 and len(words) < 40:
+        huruf_alpha = [c for c in teks if c.isalpha()]
+        if len(huruf_alpha) > 0:
+            huruf_kapital = [c for c in huruf_alpha if c.isupper()]
+            if (len(huruf_kapital) / len(huruf_alpha)) > 0.6:
+                return True
+
+    # 8. DETEKSI NAMA & GELAR AKADEMIK (Halaman Pengesahan)
+    gelar_keywords = ['s.kom', 'm.kom', 's.si', 'm.si', 'dr.', 'prof.', 's.t.', 'm.t.', 's.e.', 'm.e.', 'mmsi', 'm.i.kom', 's.pd', 'm.pd', 'ph.d', 'b.sc', 'm.sc', 'ir.']
+    if len(words) < 50:
+        match_gelar = sum(1 for g in gelar_keywords if g in t_lower)
+        if match_gelar >= 2: # Ada minimal 2 gelar akademik
+            return True
+
+    # 9. DETEKSI KALIMAT FORMAL PENGAJUAN SKRIPSI
+    frasa_pengajuan = [
+        "diajukan guna melengkapi",
+        "syarat dalam mencapai gelar",
+        "sarjana strata",
+        "untuk memenuhi salah satu syarat",
+        "memperoleh gelar sarjana",
+        "telah dipertahankan di depan",
+        "guna mencapai gelar"
+    ]
+    if any(frasa in t_lower for frasa in frasa_pengajuan):
+        return True
+
+    # 10. DETEKSI FORM ISIAN TITIK-TITIK KOSONG (Contoh: "Nama : .........")
+    # Jika titiknya lebih dari 10 dan kata-katanya sedikit
+    if t_lower.count('.') > 10 and len(words) < 30:
         return True
 
     return False
@@ -472,9 +512,14 @@ if True:
                                     
                                     # MENGIRIM TEKS ASLI KE FUNGSI TEBAK SUMBER AI
                                     sumber_ai = tebak_sumber_ai(teks_asli, lex_div, avg_len)
-                                    if "ChatGPT" in sumber_ai: count_chatgpt += 1
-                                    elif "Gemini" in sumber_ai: count_gemini += 1
-                                    elif "Claude" in sumber_ai: count_claude += 1
+                                    if sumber_ai == "Campuran (Seri)":
+                                        count_chatgpt += 1/3
+                                        count_gemini += 1/3
+                                        count_claude += 1/3
+                                    else:
+                                        if "ChatGPT" in sumber_ai: count_chatgpt += 1
+                                        elif "Gemini" in sumber_ai: count_gemini += 1
+                                        elif "Claude" in sumber_ai: count_claude += 1
                                     
                                 elif prob_ai > 40:
                                     status = "ABU-ABU"
@@ -657,8 +702,7 @@ if True:
                                 badge_html = f"<span style='background-color: #ffc107; color: black !important; padding: 6px 15px; border-radius: 20px; font-weight: bold; font-size: 13px;'>⚠️ Kemungkinan AI / Parafrase ({item['skor']:.1f}%)</span>"
                             else:
                                 warna_border = "#198754"
-                                label_tambahan = " (Bypass: Lembar Struktural)" if item.get('word_count', 0) == 0 else ""
-                                badge_html = f"<span style='background-color: #198754; color: white !important; padding: 6px 15px; border-radius: 20px; font-weight: bold; font-size: 13px;'>🟢 Prediksi SVM: Manusia ({item['skor']:.1f}%){label_tambahan}</span>"
+                                badge_html = f"<span style='background-color: #198754; color: white !important; padding: 6px 15px; border-radius: 20px; font-weight: bold; font-size: 13px;'>🟢 Prediksi SVM: Manusia ({item['skor']:.1f}%)</span>"
                             
                             st.markdown(f"""
                             <div style='background-color: #ffffff; color: #111111; padding: 20px; border-radius: 10px; border-left: 6px solid {warna_border}; border-top: 1px solid #dee2e6; border-right: 1px solid #dee2e6; border-bottom: 1px solid #dee2e6; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);'>
