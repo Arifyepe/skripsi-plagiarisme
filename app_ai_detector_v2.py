@@ -213,22 +213,24 @@ def tebak_sumber_ai(teks_asli, lex_div, avg_len):
     score_gemini = 0
     score_claude = 0
     
-    # 1. Analisis Metrik Stilometri (Hanya dipicu jika ekstrem)
-    if lex_div >= 0.85:
-        score_claude += 1
-    elif lex_div <= 0.40:
-        score_gpt += 1
-        
-    # 2. Analisis Panjang Kalimat (Hanya dipicu jika ekstrem)
-    if avg_len >= 22:
-        score_gemini += 1
-    elif avg_len <= 10:
-        score_gpt += 1
+    # 1. Analisis Metrik Stilometri (Hanya dipicu jika ekstrem dan teks cukup panjang)
+    word_count = len(teks_asli.split())
+    if word_count > 30:
+        if lex_div >= 0.85:
+            score_claude += 1
+        elif lex_div <= 0.45:
+            score_gpt += 1
+            
+        # 2. Analisis Panjang Kalimat (Hanya dipicu jika ekstrem)
+        if avg_len >= 22:
+            score_gemini += 1
+        elif avg_len <= 12:
+            score_gpt += 1
         
     # 3. Analisis Pola Frasa (Sangat kaku dan spesifik)
-    gpt_phrases = ["penting untuk dicatat", "perlu diingat bahwa", "sebagai model bahasa ai"]
-    gemini_phrases = ["secara komprehensif", "mari kita telusuri"]
-    claude_phrases = ["patut digarisbawahi", "secara fundamental"]
+    gpt_phrases = ["penting untuk dicatat", "perlu diingat bahwa", "sebagai model bahasa ai", "kesimpulannya", "secara keseluruhan", "namun demikian", "di sisi lain"]
+    gemini_phrases = ["secara komprehensif", "mari kita telusuri", "berikut adalah", "untuk memahami lebih lanjut"]
+    claude_phrases = ["patut digarisbawahi", "secara fundamental", "pada intinya", "dalam konteks ini", "tentu saja"]
     
     for phrase in gpt_phrases:
         if phrase in teks: score_gpt += 2
@@ -296,8 +298,8 @@ def is_halaman_struktural(teks):
         if sum(1 for k in pustaka_keywords if k in t_lower) >= 1:
             return True
             
-        # Jika tidak ada kata kuncinya, tapi gaya formatnya padat tanda baca (Khas Daftar Pustaka Penulis, A. B. (2020).)
-        if t_lower.count('.') >= 3 and t_lower.count(',') >= 2 and len(t_lower.split()) < 100:
+        # Jika tidak ada kata kuncinya, deteksi format gaya APA yang spesifik: "Nama, A. B. (Tahun)."
+        if bool(re.search(r'[A-Z][a-z]+,\s*[A-Z]\.\s*[A-Z]?\.', teks)) and has_year and len(t_lower.split()) < 60:
             return True
 
     # 5. DETEKSI DAFTAR LAMPIRAN (Tanpa Titik-titik, contoh: "Lampiran 1 Wawancara")
