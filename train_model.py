@@ -41,9 +41,10 @@ def extract_stylometric_features(text_series):
 # ==========================================
 # PROSES TRAINING
 # ==========================================
-print("2. Membaca data_text-dataset_pelatihan_skripsi.csv...")
-df = pd.read_csv('dataset_clean.csv')
+print("2. Membaca dataset_skripsi_final.csv...")
+df = pd.read_csv('dataset_skripsi_final.csv')
 df.columns = df.columns.str.strip() # Membersihkan spasi pada header kolom
+df = df.drop_duplicates(subset=['text']) # Hapus duplikat 
 
 print("3. Membersihkan teks (Data Cleaning)...")
 df['clean_text'] = df['text'].apply(clean_text)
