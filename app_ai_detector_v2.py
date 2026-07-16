@@ -217,15 +217,15 @@ def tebak_sumber_ai(teks_asli, lex_div, avg_len):
     word_count = len(teks_asli.split())
     if word_count > 30:
         if lex_div >= 0.85:
-            score_claude += 1
+            score_claude += 0.5
         elif lex_div <= 0.45:
-            score_gpt += 1
+            score_gpt += 0.5
             
         # 2. Analisis Panjang Kalimat (Hanya dipicu jika ekstrem)
         if avg_len >= 22:
-            score_gemini += 1
+            score_gemini += 0.5
         elif avg_len <= 12:
-            score_gpt += 1
+            score_gpt += 0.5
         
     # 3. Analisis Pola Frasa (Sangat kaku dan spesifik)
     gpt_phrases = ["penting untuk dicatat", "perlu diingat bahwa", "sebagai model bahasa ai", "kesimpulannya", "secara keseluruhan", "namun demikian", "di sisi lain"]
@@ -233,11 +233,11 @@ def tebak_sumber_ai(teks_asli, lex_div, avg_len):
     claude_phrases = ["patut digarisbawahi", "secara fundamental", "pada intinya", "dalam konteks ini", "tentu saja"]
     
     for phrase in gpt_phrases:
-        if phrase in teks: score_gpt += 2
+        if phrase in teks: score_gpt += 3
     for phrase in gemini_phrases:
-        if phrase in teks: score_gemini += 2
+        if phrase in teks: score_gemini += 3
     for phrase in claude_phrases:
-        if phrase in teks: score_claude += 2
+        if phrase in teks: score_claude += 3
         
     # Penentuan Pemenang secara adil tanpa bias >=
     if score_claude > score_gpt and score_claude > score_gemini:
@@ -263,8 +263,7 @@ def is_halaman_struktural(teks):
     frasa_mutlak = [
         "kata kunci:", "keywords:", "kata kunci :", "keywords :",
         "pernyataan originalitas", "lembar pengesahan", "halaman pengesahan",
-        "daftar pustaka", "daftar lampiran", "daftar gambar", "daftar tabel",
-        "tulisan ilmiah", "tugas akhir", "skripsi", "tesis", "disertasi", "abstrak", "abstract"
+        "daftar pustaka", "daftar lampiran", "daftar gambar", "daftar tabel"
     ]
     if any(frasa in t_lower for frasa in frasa_mutlak):
         return True
