@@ -269,37 +269,18 @@ def is_halaman_struktural(teks):
         return True
         
     # 3. CEK KATA KUNCI COVER & LEMBAR PENGESAHAN & FORM ISIAN (Kombinasi Form Isian)
-    cover_keywords = [
-        "nama", "npm", "nim", "jurusan", "program studi", "pembimbing", 
-        "penguji", "tanggal sidang", "tanggal lulus", "ketua", "kasubag",
-        "fakultas", "universitas", "menyetujui", "tanda tangan", "nip", "nidn", "judul",
-        "mata pelajaran", "kelas", "absen", "hari", "tanggal", "latihan", "fase", "semester"
-    ]
-    # Jika dalam 1 paragraf pendek (<80 kata) memuat setidaknya 3 kata kunci dari form cover/pengesahan
-    if len(t_lower.split()) < 80:
-        match_count = sum(1 for k in cover_keywords if k in t_lower)
-        if match_count >= 3:
-            return True
-        # Atau jika banyak tanda titik dua (khas formulir/biodata)
-        if t_lower.count(':') >= 2 and match_count >= 2:
-            return True
+    # Dipersempit hanya untuk pola mutlak form seperti "NIM :" atau "Nama :" dengan titik dua
+    if re.search(r'\b(nama|npm|nim|jurusan|program studi|pembimbing|penguji)\s*:', t_lower):
+        return True
 
-    # 4. DETEKSI ISI DAFTAR PUSTAKA (SITASI) YANG SANGAT AGRESIF
-    has_year = bool(re.search(r'\b(19|20)\d{2}\b', t_lower)) # Deteksi adanya tahun (ex: 2024, 2025)
-    has_bracket = bool(re.search(r'\[\d+\]', t_lower)) # Deteksi format IEEE (ex: [1])
+    # 4. DETEKSI ISI DAFTAR PUSTAKA (SITASI)
+    # Hanya deteksi sitasi IEEE [1] murni di awal baris
+    if bool(re.search(r'^\[\d+\]', t_lower.strip())): 
+        return True
     
-    if has_year or has_bracket:
-        # Cek jika ada elemen khas pustaka akademik
-        pustaka_keywords = [
-            'jurnal', 'journal', 'vol.', 'vol ', 'no.', 'hal.', 'pp.', 'doi', 'https://', 'http', 
-            'diakses', 'press', 'universitas', 'university', 'edisi', 'makalah', 'proceeding'
-        ]
-        if sum(1 for k in pustaka_keywords if k in t_lower) >= 1:
-            return True
-            
-        # Jika tidak ada kata kuncinya, deteksi format gaya APA yang spesifik: "Nama, A. B. (Tahun)."
-        if bool(re.search(r'[A-Z][a-z]+,\s*[A-Z]\.\s*[A-Z]?\.', teks)) and has_year and len(t_lower.split()) < 60:
-            return True
+    # Format APA murni di awal baris: "Nama, A. B. (Tahun)."
+    if bool(re.search(r'^[a-z]+,\s*[a-z]\.\s*[a-z]?\.\s*\(\d{4}\)', t_lower.strip())):
+        return True
 
     # 5. DETEKSI DAFTAR LAMPIRAN (Tanpa Titik-titik, contoh: "Lampiran 1 Wawancara")
     if len(re.findall(r'lampiran\s+\d+', t_lower)) >= 1 or len(re.findall(r'lampiran\s+[a-z]', t_lower)) >= 1:
@@ -322,11 +303,7 @@ def is_halaman_struktural(teks):
                 return True
 
     # 8. DETEKSI NAMA & GELAR AKADEMIK (Halaman Pengesahan)
-    gelar_keywords = ['s.kom', 'm.kom', 's.si', 'm.si', 'dr.', 'prof.', 's.t.', 'm.t.', 's.e.', 'm.e.', 'mmsi', 'm.i.kom', 's.pd', 'm.pd', 'ph.d', 'b.sc', 'm.sc', 'ir.']
-    if len(words) < 50:
-        match_gelar = sum(1 for g in gelar_keywords if g in t_lower)
-        if match_gelar >= 2: # Ada minimal 2 gelar akademik
-            return True
+    # Dihapus karena terlalu sering memicu false positive pada teks buatan AI yang menyebutkan tokoh.
 
     # 9. DETEKSI KALIMAT FORMAL PENGAJUAN SKRIPSI
     frasa_pengajuan = [

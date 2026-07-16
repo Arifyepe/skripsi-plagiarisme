@@ -24,12 +24,13 @@ svm_model = joblib.load("svm_model.joblib")
 # Preprocess
 X_test_tfidf = vectorizer.transform(X_test)
 
+import string
 def get_stylometry(text):
     words = text.split()
-    word_count = len(words)
-    char_count = sum(len(word) for word in words)
-    avg_word_len = char_count / word_count if word_count > 0 else 0
-    punct_count = sum(1 for char in text if char in ".,!?;:")
+    word_count = len(words) if len(words) > 0 else 1
+    char_count = len(text)
+    avg_word_len = char_count / word_count
+    punct_count = sum([1 for char in text if char in string.punctuation])
     return [word_count, char_count, avg_word_len, punct_count]
 
 X_test_stylo = np.array([get_stylometry(text) for text in X_test])
